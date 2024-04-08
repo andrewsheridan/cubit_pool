@@ -10,7 +10,9 @@ class HydratedCubitPool<T> extends CubitPool<T> with HydratedMixin {
     required super.to,
     required super.getID,
     required super.initialState,
-  });
+  }) {
+    hydrate();
+  }
 
   @override
   Map<String, T>? fromJson(Map<String, dynamic> json) {
