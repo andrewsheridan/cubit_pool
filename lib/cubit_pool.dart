@@ -11,11 +11,13 @@ class CubitPool<T> extends Cubit<Map<String, T>> {
 
   final Logger logger = Logger("Pool<${T.runtimeType}>");
 
+  final StreamController<T> _itemAddedController = StreamController.broadcast();
   final StreamController<T> _itemUpdatedController =
       StreamController.broadcast();
   final StreamController<T> _itemDeletedController =
       StreamController.broadcast();
 
+  Stream<T> get itemAddedStream => _itemAddedController.stream;
   Stream<T> get itemUpdatedStream => _itemUpdatedController.stream;
   Stream<T> get itemDeletedStream => _itemDeletedController.stream;
 
@@ -28,8 +30,14 @@ class CubitPool<T> extends Cubit<Map<String, T>> {
 
   @mustCallSuper
   void upsert(T thing) {
+    final exists = state.containsKey(getID(thing));
+
     emit({...state, getID(thing): thing});
-    _itemUpdatedController.sink.add(thing);
+    if (exists) {
+      _itemUpdatedController.sink.add(thing);
+    } else {
+      _itemAddedController.sink.add(thing);
+    }
   }
 
   @mustCallSuper
