@@ -33,11 +33,12 @@ class CubitPool<T> extends Cubit<Map<String, T>> {
   }
 
   @mustCallSuper
-  void delete(String id) {
-    final item = state[id];
-    emit(Map.fromEntries(state.entries.where((element) => element.key != id)));
-    if (item != null) {
-      _itemDeletedController.sink.add(item);
-    }
+  void delete(T item) {
+    final id = getID(item);
+    if (!state.containsKey(id)) return;
+
+    emit(Map.fromEntries(state.entries.where((e) => e.key != id)));
+
+    _itemDeletedController.sink.add(item);
   }
 }
