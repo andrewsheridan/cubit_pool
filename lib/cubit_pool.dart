@@ -4,10 +4,10 @@ import 'package:flutter/foundation.dart';
 import 'package:hydrated_bloc/hydrated_bloc.dart';
 import 'package:logging/logging.dart';
 
-class CubitPool<T> extends Cubit<Map<String, T>> {
-  final Map<String, dynamic> Function(T item) to;
-  final T Function(Map<String, dynamic> json) from;
-  final String Function(T value) getID;
+abstract class CubitPool<T> extends Cubit<Map<String, T>> {
+  Map<String, dynamic> itemToJson(T item);
+  T itemFromJson(Map<String, dynamic> json);
+  String getItemID(T value);
 
   final Logger logger = Logger("Pool<${T.runtimeType}>");
 
@@ -22,17 +22,14 @@ class CubitPool<T> extends Cubit<Map<String, T>> {
   Stream<T> get itemDeletedStream => _itemDeletedController.stream;
 
   CubitPool({
-    required this.from,
-    required this.to,
-    required this.getID,
     Map<String, T> initialState = const {},
   }) : super(initialState);
 
   @mustCallSuper
   void upsert(T thing) {
-    final exists = state.containsKey(getID(thing));
+    final exists = state.containsKey(getItemID(thing));
 
-    emit({...state, getID(thing): thing});
+    emit({...state, getItemID(thing): thing});
     if (exists) {
       _itemUpdatedController.sink.add(thing);
     } else {
@@ -42,7 +39,7 @@ class CubitPool<T> extends Cubit<Map<String, T>> {
 
   @mustCallSuper
   void delete(T item) {
-    final id = getID(item);
+    final id = getItemID(item);
     if (!state.containsKey(id)) return;
 
     emit(Map.fromEntries(state.entries.where((e) => e.key != id)));

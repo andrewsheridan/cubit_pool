@@ -4,13 +4,8 @@ import 'package:hydrated_bloc/hydrated_bloc.dart';
 
 import 'cubit_pool.dart';
 
-class HydratedCubitPool<T> extends CubitPool<T> with HydratedMixin {
-  HydratedCubitPool({
-    required super.from,
-    required super.to,
-    required super.getID,
-    required super.initialState,
-  }) {
+abstract class HydratedCubitPool<T> extends CubitPool<T> with HydratedMixin {
+  HydratedCubitPool({super.initialState = const {}}) {
     hydrate();
   }
 
@@ -19,7 +14,7 @@ class HydratedCubitPool<T> extends CubitPool<T> with HydratedMixin {
     final output = <String, T>{};
     for (final key in json.keys) {
       try {
-        output[key] = from(json[key]);
+        output[key] = itemFromJson(json[key]);
       } catch (ex) {
         logger.severe(
             "Failed to parse ${jsonEncode(json[key])} from json.", ex);
@@ -34,7 +29,7 @@ class HydratedCubitPool<T> extends CubitPool<T> with HydratedMixin {
 
     for (final key in state.keys) {
       try {
-        output[key] = to(state[key] as T);
+        output[key] = itemToJson(state[key] as T);
       } catch (ex) {
         logger.severe("Failed to parse ${state[key]!.toString()}", ex);
       }
