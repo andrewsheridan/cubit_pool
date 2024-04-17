@@ -8,6 +8,10 @@ abstract class HydratedValueCubit<T> extends HydratedCubit<T> {
   T? valueFromJson(String? json);
   String? valueToJson(T? value);
 
+  void setState(T value) {
+    emit(value);
+  }
+
   @override
   T? fromJson(Map<String, dynamic> json) {
     return valueFromJson(json[key]);
