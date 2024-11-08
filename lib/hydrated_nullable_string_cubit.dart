@@ -1,7 +1,7 @@
 import 'package:cubit_pool/hydrated_value_cubit.dart';
 
 class HydratedNullableStringCubit extends HydratedValueCubit<String?> {
-  HydratedNullableStringCubit({String? initialValue}) : super(initialValue);
+  HydratedNullableStringCubit([super.state]);
 
   @override
   String? valueFromJson(String? json) {

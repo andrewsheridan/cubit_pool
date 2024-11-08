@@ -1,7 +1,7 @@
 import 'package:cubit_pool/hydrated_value_cubit.dart';
 
 class HydratedDoubleCubit extends HydratedValueCubit<double> {
-  HydratedDoubleCubit({double initialValue = 0}) : super(initialValue);
+  HydratedDoubleCubit(super.state);
 
   @override
   double? valueFromJson(String? json) {
