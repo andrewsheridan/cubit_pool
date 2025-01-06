@@ -1,6 +1,6 @@
 name: cubit_pool
 description: "A new Flutter package project."
-version: 0.0.5
+version: 0.1.1
 homepage: null
 
 environment:
@@ -18,7 +18,7 @@ dependencies:
 
 dev_dependencies:
   equatable: ^2.0.7
-  flutter_lints: ^3.0.0
+  flutter_lints: ^4.0.0
   flutter_test:
     sdk: flutter
   mocktail: ^1.0.4
