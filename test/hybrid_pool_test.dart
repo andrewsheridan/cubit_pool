@@ -148,7 +148,30 @@ void main() {
 
   test(
     "Given there is an anonymous user logged in, when a non-anon user signs in, then copy HydratedCubit data to Firebase and delete it from HydratedCubit.",
-    () async {},
+    () async {
+      final anonUser = MockUser();
+      when(() => anonUser.isAnonymous).thenReturn(true);
+      when(() => firebaseAuth.currentUser).thenReturn(anonUser);
+
+      final pool = build();
+      await pumpEventQueue();
+
+      expect(pool.getByID(bear.id), bear);
+
+      final user = MockUser();
+      when(() => user.isAnonymous).thenReturn(false);
+      when(() => user.uid).thenReturn(uid);
+      when(() => firebaseAuth.currentUser).thenReturn(user);
+
+      userStreamController.add(user);
+
+      await pumpEventQueue();
+
+      expect(pool.getByID(bear.id), bear);
+      expect(pool.getByID(deer.id), deer);
+
+      verify(() => localPool.delete(bear));
+    },
   );
 
   test(
