@@ -10,7 +10,6 @@ import 'mocks/mock_collection_reference.dart';
 import 'mocks/mock_firebase_auth.dart';
 import 'mocks/mock_firebase_firestore.dart';
 import 'mocks/mock_hydrated_cubit_pool.dart';
-import 'mocks/mock_query_snapshot.dart';
 import 'mocks/mock_user.dart';
 
 void main() {
@@ -34,6 +33,12 @@ void main() {
     count: 3,
   );
 
+  void setUpLocalPool(List<Animal> animals) {
+    when(() => localPool.state).thenReturn({
+      for (final animal in animals) animal.id: animal,
+    });
+  }
+
   setUp(() {
     localPool = MockHydratedCubitPool<Animal>();
     firebaseAuth = MockFirebaseAuth();
@@ -41,12 +46,15 @@ void main() {
     userStreamController = StreamController<User?>();
     collectionReference = MockCollectionReference();
 
-    when(() => localPool.state).thenReturn({
-      bear.id: bear,
-    });
+    setUpLocalPool([bear]);
 
+    when(() => localPool.itemToJson(bear)).thenReturn(bear.toMap());
+    when(() => localPool.itemToJson(deer)).thenReturn(deer.toMap());
     when(() => localPool.itemFromJson(any())).thenAnswer(
       (invocation) => Animal.fromMap(invocation.positionalArguments.first),
+    );
+    when(() => localPool.getItemID(bear)).thenAnswer(
+      (invocation) => bear.id,
     );
     when(() => localPool.getItemID(deer)).thenAnswer(
       (invocation) => deer.id,
@@ -55,18 +63,11 @@ void main() {
     when(() => firestore.collection("$uid/animals"))
         .thenReturn(collectionReference);
 
-    final querySnapshot = MockQueryDocumentSnapshot();
-    when(() => querySnapshot.data()).thenReturn(
-      deer.toMap(),
-    );
-
-    final snapshot = MockQuerySnapshot();
-
-    when(() => snapshot.docs).thenReturn([querySnapshot]);
-    when(() => collectionReference.get()).thenAnswer((_) async => snapshot);
     when(() => firebaseAuth.userChanges()).thenAnswer(
       (_) => userStreamController.stream,
     );
+
+    collectionReference.doc(deer.id).set(deer.toMap());
   });
 
   HybridPool<Animal> build() => HybridPool<Animal>(
@@ -105,6 +106,7 @@ void main() {
   test(
     "Given there is a non-anon user signed in, when constructed, expose data from Firebase.",
     () async {
+      setUpLocalPool([]);
       final user = MockUser();
       when(() => user.isAnonymous).thenReturn(false);
       when(() => user.uid).thenReturn(uid);
@@ -120,7 +122,28 @@ void main() {
 
   test(
     "Given there is no user logged in, when a non-anon user signs in, then copy HydratedCubit data to Firebase and delete it from HydratedCubit.",
-    () async {},
+    () async {
+      when(() => firebaseAuth.currentUser).thenReturn(null);
+
+      final pool = build();
+      await pumpEventQueue();
+
+      expect(pool.getByID(bear.id), bear);
+
+      final user = MockUser();
+      when(() => user.isAnonymous).thenReturn(false);
+      when(() => user.uid).thenReturn(uid);
+      when(() => firebaseAuth.currentUser).thenReturn(user);
+
+      userStreamController.add(user);
+
+      await pumpEventQueue();
+
+      expect(pool.getByID(bear.id), bear);
+      expect(pool.getByID(deer.id), deer);
+
+      verify(() => localPool.delete(bear));
+    },
   );
 
   test(

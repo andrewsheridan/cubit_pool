@@ -13,8 +13,10 @@ class HybridPool<T> extends ChangeNotifier {
   final String Function(User user) collectionPath;
   final Logger _logger = Logger("HybridPool");
   late final StreamSubscription<User?> _userSubscription;
-  User? _user;
-  final bool _useLocalPool = true;
+
+  Map<String, T> _map = {};
+
+  T? getByID(String id) => _map[id];
 
   HybridPool({
     required HydratedCubitPool<T> localPool,
@@ -25,8 +27,8 @@ class HybridPool<T> extends ChangeNotifier {
         _auth = auth,
         _firestore = firestore {
     final userStream = _auth.userChanges();
-    _userSubscription = userStream.listen(_handleUserChanged);
-    _handleUserChanged(_auth.currentUser);
+    _userSubscription = userStream.listen(_getData);
+    _getData(_auth.currentUser);
   }
 
   @override
@@ -39,7 +41,7 @@ class HybridPool<T> extends ChangeNotifier {
     return user == null || user.isAnonymous;
   }
 
-  void _handleUserChanged(User? user) async {
+  void _getData(User? user) async {
     final useLocalPool = _shouldUseLocalPool(user);
 
     if (useLocalPool) {
@@ -50,6 +52,22 @@ class HybridPool<T> extends ChangeNotifier {
       }
     } else {
       final collection = _firestore.collection(collectionPath(user!));
+
+      final localData = _localPool.state;
+      for (final entry in localData.entries) {
+        try {
+          await collection.doc(entry.key).set(
+                _localPool.itemToJson(entry.value),
+              );
+
+          _localPool.delete(entry.value);
+        } catch (ex) {
+          _logger.severe(
+            "Failed to upload local item ${entry.value.toString()}",
+          );
+        }
+      }
+
       final snapshot = await collection.get();
       final docs = snapshot.docs;
       final data = <String, T>{};
@@ -62,11 +80,5 @@ class HybridPool<T> extends ChangeNotifier {
       _map = data;
       notifyListeners();
     }
-
-    _user = user;
   }
-
-  Map<String, T> _map = {};
-
-  T? getByID(String id) => _map[id];
 }
