@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cubit_pool/hydrated_cubit_pool.dart';
@@ -15,20 +16,22 @@ class HybridPool<T> extends ChangeNotifier {
   final Duration _updateDelayDuration;
   late final StreamSubscription<User?> _userSubscription;
 
-  Map<String, T> _map = {};
+  Map<String, T> _state = {};
   final Map<String, T> _updates = {};
 
   Timer? _timer;
 
-  T? getByID(String id) => _map[id];
+  T? getByID(String id) => _state[id];
 
-  HybridPool(
-      {required HydratedCubitPool<T> localPool,
-      required FirebaseAuth auth,
-      required FirebaseFirestore firestore,
-      required this.collectionPath,
-      required Duration updateDelayDuration})
-      : _localPool = localPool,
+  UnmodifiableMapView<String, T> get state => UnmodifiableMapView(_state);
+
+  HybridPool({
+    required HydratedCubitPool<T> localPool,
+    required FirebaseAuth auth,
+    required FirebaseFirestore firestore,
+    required this.collectionPath,
+    required Duration updateDelayDuration,
+  })  : _localPool = localPool,
         _auth = auth,
         _firestore = firestore,
         _updateDelayDuration = updateDelayDuration {
@@ -47,13 +50,13 @@ class HybridPool<T> extends ChangeNotifier {
     return user == null || user.isAnonymous;
   }
 
-  void _getData(User? user) async {
+  Future<void> _getData(User? user) async {
     final useLocalPool = _shouldUseLocalPool(user);
 
     if (useLocalPool) {
       final data = _localPool.state;
-      if (data != _map) {
-        _map = data;
+      if (data != _state) {
+        _state = data;
         notifyListeners();
       }
     } else {
@@ -80,7 +83,7 @@ class HybridPool<T> extends ChangeNotifier {
         final id = _localPool.getItemID(item);
         data[id] = item;
       }
-      _map = data;
+      _state = data;
       notifyListeners();
     }
   }
@@ -95,7 +98,7 @@ class HybridPool<T> extends ChangeNotifier {
 
   Future<void> upsert(T value) async {
     final id = _localPool.getItemID(value);
-    _map[id] = value;
+    _state[id] = value;
 
     notifyListeners();
     if (_shouldUseLocalPool(_auth.currentUser)) {
@@ -105,6 +108,32 @@ class HybridPool<T> extends ChangeNotifier {
       _timer?.cancel();
       _timer = Timer(_updateDelayDuration, _executeUpdates);
     }
+  }
+
+  Future<void> delete(T value) async {
+    final id = _localPool.getItemID(value);
+    _state.remove(id);
+
+    if (_shouldUseLocalPool(_auth.currentUser)) {
+      _localPool.delete(value);
+    } else {
+      try {
+        return _firestore
+            .collection(collectionPath(_auth.currentUser!))
+            .doc(id)
+            .delete();
+      } catch (ex) {
+        _logger.severe(
+          "Failed to remove item from Firebase storage.",
+          ex,
+        );
+        rethrow;
+      }
+    }
+  }
+
+  Future<void> refresh() {
+    return _getData(_auth.currentUser);
   }
 
   Future<void> _executeUpdates() async {

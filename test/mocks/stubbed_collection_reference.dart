@@ -40,6 +40,10 @@ class StubbedCollectionReference extends Mock
       return snapshot;
     });
 
+    when(() => reference.delete()).thenAnswer((invocation) async {
+      _map.remove(path);
+    });
+
     return reference;
   }
 }

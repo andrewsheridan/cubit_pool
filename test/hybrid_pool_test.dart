@@ -329,7 +329,137 @@ void main() {
     },
   );
 
-  // TODO: Unit tests for deleting
+  test(
+    "Given a user is logged out, when delete is called, then the item will be immediately deleted from the local storage.",
+    () async {
+      setupMockUser(UserType.loggedOut);
 
-  // TODO: Unit tests for refresh
+      final pool = build();
+
+      expect(pool.state, isNotEmpty);
+      expect(pool.getByID(bear.id), bear);
+
+      pool.delete(bear);
+
+      expect(pool.state, isEmpty);
+      expect(pool.getByID(bear.id), null);
+      verify(() => localPool.delete(bear));
+    },
+  );
+
+  test(
+    "Given a user is anonymous, when delete is called, then the item will be immediately deleted from the local storage.",
+    () async {
+      setupMockUser(UserType.anonymous);
+
+      final pool = build();
+
+      expect(pool.state, isNotEmpty);
+      expect(pool.getByID(bear.id), bear);
+
+      pool.delete(bear);
+
+      expect(pool.state, isEmpty);
+      expect(pool.getByID(bear.id), null);
+      verify(() => localPool.delete(bear));
+    },
+  );
+
+  test(
+    "Given a user is logged in, when delete is called, then the item will be immediately deleted from Firestore.",
+    () async {
+      setupMockUser(UserType.loggedIn);
+
+      final pool = build();
+
+      await pumpEventQueue();
+
+      expect(pool.state, isNotEmpty);
+      expect(pool.getByID(bear.id), bear);
+      expect(pool.getByID(deer.id), deer);
+
+      final bearDocBefore = await collectionReference.doc(bear.id).get();
+      expect(bearDocBefore.data(), bear.toMap());
+
+      final deerDocBefore = await collectionReference.doc(deer.id).get();
+      expect(deerDocBefore.data(), deer.toMap());
+
+      await pool.delete(deer);
+      await pool.delete(bear);
+
+      expect(pool.state, isEmpty);
+      expect(pool.getByID(deer.id), null);
+      expect(pool.getByID(bear.id), null);
+
+      final bearDoc = await collectionReference.doc(bear.id).get();
+      expect(bearDoc.data(), {});
+
+      final deerDoc = await collectionReference.doc(deer.id).get();
+      expect(deerDoc.data(), {});
+    },
+  );
+
+  test(
+    "Given the user is not logged in, when refresh is called, the latest state from local storage is exposed.",
+    () async {
+      setupMockUser(UserType.loggedOut);
+
+      final pool = build();
+
+      const sheep = Animal(id: "4", name: "Sheep", count: 100);
+      setUpLocalPool([bear, sheep]);
+
+      expect(pool.state.length, 1);
+      expect(pool.getByID(sheep.id), null);
+
+      await pool.refresh();
+
+      expect(pool.state.length, 2);
+      expect(pool.getByID(sheep.id), sheep);
+    },
+  );
+
+  test(
+    "Given the user is anonymous, when refresh is called, the latest state from local storage is exposed.",
+    () async {
+      setupMockUser(UserType.anonymous);
+
+      final pool = build();
+
+      const sheep = Animal(id: "4", name: "Sheep", count: 100);
+      setUpLocalPool([bear, sheep]);
+
+      expect(pool.state.length, 1);
+      expect(pool.getByID(sheep.id), null);
+
+      await pool.refresh();
+
+      expect(pool.state.length, 2);
+      expect(pool.getByID(sheep.id), sheep);
+    },
+  );
+
+  test(
+    "Given the user is logged in, when refresh is called, the latest state from Firestore is exposed.",
+    () async {
+      setupMockUser(UserType.loggedIn);
+      setUpLocalPool([]);
+      const sheep = Animal(id: "4", name: "Sheep", count: 100);
+      setupAnimalMocks([deer, sheep]);
+
+      final pool = build();
+
+      await pumpEventQueue();
+
+      collectionReference.doc(sheep.id).set(sheep.toMap());
+
+      expect(pool.state.length, 1);
+      expect(pool.getByID(sheep.id), null);
+
+      await pool.refresh();
+
+      expect(pool.state.length, 2);
+      expect(pool.getByID(sheep.id), sheep);
+    },
+  );
 }
