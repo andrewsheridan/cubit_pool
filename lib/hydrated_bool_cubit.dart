@@ -1,7 +1,7 @@
 import 'package:cubit_pool/hydrated_value_cubit.dart';
 
 class HydratedBoolCubit extends HydratedValueCubit<bool> {
-  HydratedBoolCubit(super.initialValue);
+  HydratedBoolCubit(super.state);
 
   @override
   bool? valueFromJson(String? json) {
