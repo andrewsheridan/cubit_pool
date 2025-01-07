@@ -56,10 +56,7 @@ class HybridPool<T> extends ChangeNotifier {
       final localData = _localPool.state;
       for (final entry in localData.entries) {
         try {
-          await collection.doc(entry.key).set(
-                _localPool.itemToJson(entry.value),
-              );
-
+          await _setFirebaseValue(entry.value);
           _localPool.delete(entry.value);
         } catch (ex) {
           _logger.severe(
@@ -79,6 +76,26 @@ class HybridPool<T> extends ChangeNotifier {
       }
       _map = data;
       notifyListeners();
+    }
+  }
+
+  Future<void> _setFirebaseValue(T value) {
+    final id = _localPool.getItemID(value);
+    return _firestore
+        .collection(collectionPath(_auth.currentUser!))
+        .doc(id)
+        .set(_localPool.itemToJson(value));
+  }
+
+  Future<void> upsert(T value) async {
+    final id = _localPool.getItemID(value);
+    _map[id] = value;
+
+    notifyListeners();
+    if (_shouldUseLocalPool(_auth.currentUser)) {
+      _localPool.upsert(value);
+    } else {
+      await _setFirebaseValue(value);
     }
   }
 }

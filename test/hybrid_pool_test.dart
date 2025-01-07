@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cubit_pool/hybrid_pool.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,14 +11,22 @@ import 'mocks/mock_collection_reference.dart';
 import 'mocks/mock_firebase_auth.dart';
 import 'mocks/mock_firebase_firestore.dart';
 import 'mocks/mock_hydrated_cubit_pool.dart';
+import 'mocks/mock_query_snapshot.dart';
 import 'mocks/mock_user.dart';
+import 'mocks/stubbed_collection_reference.dart';
+
+enum UserType {
+  loggedOut,
+  anonymous,
+  nonAnon,
+}
 
 void main() {
   late MockHydratedCubitPool<Animal> localPool;
   late MockFirebaseAuth firebaseAuth;
   late MockFirebaseFirestore firestore;
   late StreamController<User?> userStreamController;
-  late MockCollectionReference collectionReference;
+  late CollectionReference<Map<String, dynamic>> collectionReference;
 
   const uid = "User ID";
 
@@ -39,30 +48,51 @@ void main() {
     });
   }
 
+  User? setupMockUser(UserType userType) {
+    switch (userType) {
+      case UserType.loggedOut:
+        when(() => firebaseAuth.currentUser).thenReturn(null);
+        return null;
+
+      case UserType.anonymous:
+        final user = MockUser();
+        when(() => user.isAnonymous).thenReturn(true);
+        when(() => user.uid).thenReturn(uid);
+        when(() => firebaseAuth.currentUser).thenReturn(user);
+        return user;
+      case UserType.nonAnon:
+        final user = MockUser();
+        when(() => user.isAnonymous).thenReturn(false);
+        when(() => user.uid).thenReturn(uid);
+        when(() => firebaseAuth.currentUser).thenReturn(user);
+        return user;
+    }
+  }
+
+  void setupAnimalMocks(List<Animal> animals) {
+    when(() => localPool.itemFromJson(any())).thenAnswer(
+      (invocation) => Animal.fromMap(invocation.positionalArguments.first),
+    );
+    for (final animal in animals) {
+      when(() => localPool.itemToJson(animal)).thenReturn(animal.toMap());
+      when(() => localPool.getItemID(animal)).thenAnswer(
+        (invocation) => animal.id,
+      );
+    }
+  }
+
   setUp(() {
     localPool = MockHydratedCubitPool<Animal>();
     firebaseAuth = MockFirebaseAuth();
     firestore = MockFirebaseFirestore();
     userStreamController = StreamController<User?>();
-    collectionReference = MockCollectionReference();
+    collectionReference = StubbedCollectionReference();
 
     setUpLocalPool([bear]);
-
-    when(() => localPool.itemToJson(bear)).thenReturn(bear.toMap());
-    when(() => localPool.itemToJson(deer)).thenReturn(deer.toMap());
-    when(() => localPool.itemFromJson(any())).thenAnswer(
-      (invocation) => Animal.fromMap(invocation.positionalArguments.first),
-    );
-    when(() => localPool.getItemID(bear)).thenAnswer(
-      (invocation) => bear.id,
-    );
-    when(() => localPool.getItemID(deer)).thenAnswer(
-      (invocation) => deer.id,
-    );
+    setupAnimalMocks([bear, deer]);
 
     when(() => firestore.collection("$uid/animals"))
         .thenReturn(collectionReference);
-
     when(() => firebaseAuth.userChanges()).thenAnswer(
       (_) => userStreamController.stream,
     );
@@ -92,9 +122,7 @@ void main() {
   test(
     "Given there is an anonymous user logged in, when constructed, expose data from HydratedCubit.",
     () async {
-      final user = MockUser();
-      when(() => user.isAnonymous).thenReturn(true);
-      when(() => firebaseAuth.currentUser).thenReturn(user);
+      setupMockUser(UserType.anonymous);
 
       final pool = build();
       await pumpEventQueue();
@@ -107,10 +135,8 @@ void main() {
     "Given there is a non-anon user signed in, when constructed, expose data from Firebase.",
     () async {
       setUpLocalPool([]);
-      final user = MockUser();
-      when(() => user.isAnonymous).thenReturn(false);
-      when(() => user.uid).thenReturn(uid);
-      when(() => firebaseAuth.currentUser).thenReturn(user);
+
+      setupMockUser(UserType.nonAnon);
 
       final pool = build();
       await pumpEventQueue();
@@ -130,11 +156,7 @@ void main() {
 
       expect(pool.getByID(bear.id), bear);
 
-      final user = MockUser();
-      when(() => user.isAnonymous).thenReturn(false);
-      when(() => user.uid).thenReturn(uid);
-      when(() => firebaseAuth.currentUser).thenReturn(user);
-
+      final user = setupMockUser(UserType.nonAnon);
       userStreamController.add(user);
 
       await pumpEventQueue();
@@ -149,20 +171,14 @@ void main() {
   test(
     "Given there is an anonymous user logged in, when a non-anon user signs in, then copy HydratedCubit data to Firebase and delete it from HydratedCubit.",
     () async {
-      final anonUser = MockUser();
-      when(() => anonUser.isAnonymous).thenReturn(true);
-      when(() => firebaseAuth.currentUser).thenReturn(anonUser);
+      setupMockUser(UserType.anonymous);
 
       final pool = build();
       await pumpEventQueue();
 
       expect(pool.getByID(bear.id), bear);
 
-      final user = MockUser();
-      when(() => user.isAnonymous).thenReturn(false);
-      when(() => user.uid).thenReturn(uid);
-      when(() => firebaseAuth.currentUser).thenReturn(user);
-
+      final user = setupMockUser(UserType.nonAnon);
       userStreamController.add(user);
 
       await pumpEventQueue();
@@ -176,32 +192,109 @@ void main() {
 
   test(
     "Given there is a non-anon user signed in, when the user signs out, then switch to exposing HydratedCubit data.",
-    () async {},
+    () async {
+      setUpLocalPool([]);
+      setupMockUser(UserType.nonAnon);
+
+      final pool = build();
+      await pumpEventQueue();
+
+      expect(pool.getByID(deer.id), deer);
+      expect(pool.getByID(bear.id), null);
+
+      setUpLocalPool([bear]);
+
+      userStreamController.add(null);
+
+      await pumpEventQueue();
+
+      expect(pool.getByID(bear.id), bear);
+      expect(pool.getByID(deer.id), null);
+    },
   );
 
-  // TODO: Should I keep the local data exposed if the firebase transfer fails?
   test(
     "Given there is no user logged in, when a non-anon user signs in and Firebase data copy fails, do not delete HydratedCubit data.",
-    () async {},
+    () async {
+      when(() => firebaseAuth.currentUser).thenReturn(null);
+
+      final pool = build();
+      await pumpEventQueue();
+
+      expect(pool.getByID(bear.id), bear);
+
+      final user = setupMockUser(UserType.nonAnon);
+
+      collectionReference = MockCollectionReference();
+
+      when(() => collectionReference.doc(any())).thenThrow(
+        Exception("Some error when getting a doc from the collection."),
+      );
+
+      final snapshot = MockQuerySnapshot();
+
+      when(() => snapshot.docs).thenAnswer((_) => []);
+      when((() => collectionReference.get())).thenAnswer((_) async => snapshot);
+
+      when(() => firestore.collection("$uid/animals"))
+          .thenReturn(collectionReference);
+
+      userStreamController.add(user);
+
+      await pumpEventQueue();
+
+      verifyNever(() => localPool.delete(bear));
+    },
   );
 
-  // TODO: Maybe I make two versions of the HybridPool, one that listens to the source for changes, and one that is the source of truth that can be manually refreshed.
   test(
-    "Given there is no user logged in, when the local HydratedCubit data changes, call notifyListeners().",
-    () async {},
+    "Given there is no user logged in, when upsert is called, immediately call notifyListeners() and update local storage.",
+    () async {
+      setupMockUser(UserType.loggedOut);
+
+      const wolf = Animal(id: "2", name: "Wolf", count: 2);
+      setupAnimalMocks([wolf]);
+
+      final pool = build();
+
+      bool notifyCalled = false;
+      pool.addListener(() {
+        notifyCalled = true;
+      });
+
+      pool.upsert(wolf);
+
+      verify(() => localPool.upsert(wolf));
+      expect(notifyCalled, true);
+    },
   );
 
   test(
-    "Given there is an anonymous user logged in, when the local HydratedCubit data changes, call notifyListeners().",
-    () async {},
+    "Given there is an anonymous user logged in, when upsert is called, immediately call notifyListeners() and update local storage.",
+    () async {
+      setupMockUser(UserType.anonymous);
+
+      const wolf = Animal(id: "2", name: "Wolf", count: 2);
+      setupAnimalMocks([wolf]);
+
+      final pool = build();
+
+      bool notifyCalled = false;
+      pool.addListener(() {
+        notifyCalled = true;
+      });
+
+      pool.upsert(wolf);
+
+      verify(() => localPool.upsert(wolf));
+      expect(notifyCalled, true);
+    },
   );
 
   test(
-    "Given there is a non-anon user logged in, when the  data changes, call notifyListeners().",
+    "Given there is a non-anon user logged in, when the data changes, immediately call notifyListeners() and after a delay update Firestore.",
     () async {},
   );
-
-  // TODO: Unit tests for upserting
 
   // TODO: Unit tests for deleting
 
