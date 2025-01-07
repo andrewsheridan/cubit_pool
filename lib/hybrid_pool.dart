@@ -12,20 +12,26 @@ class HybridPool<T> extends ChangeNotifier {
   final FirebaseFirestore _firestore;
   final String Function(User user) collectionPath;
   final Logger _logger = Logger("HybridPool");
+  final Duration _updateDelayDuration;
   late final StreamSubscription<User?> _userSubscription;
 
   Map<String, T> _map = {};
+  final Map<String, T> _updates = {};
+
+  Timer? _timer;
 
   T? getByID(String id) => _map[id];
 
-  HybridPool({
-    required HydratedCubitPool<T> localPool,
-    required FirebaseAuth auth,
-    required FirebaseFirestore firestore,
-    required this.collectionPath,
-  })  : _localPool = localPool,
+  HybridPool(
+      {required HydratedCubitPool<T> localPool,
+      required FirebaseAuth auth,
+      required FirebaseFirestore firestore,
+      required this.collectionPath,
+      required Duration updateDelayDuration})
+      : _localPool = localPool,
         _auth = auth,
-        _firestore = firestore {
+        _firestore = firestore,
+        _updateDelayDuration = updateDelayDuration {
     final userStream = _auth.userChanges();
     _userSubscription = userStream.listen(_getData);
     _getData(_auth.currentUser);
@@ -95,7 +101,29 @@ class HybridPool<T> extends ChangeNotifier {
     if (_shouldUseLocalPool(_auth.currentUser)) {
       _localPool.upsert(value);
     } else {
-      await _setFirebaseValue(value);
+      _updates[id] = value;
+      _timer?.cancel();
+      _timer = Timer(_updateDelayDuration, _executeUpdates);
+    }
+  }
+
+  Future<void> _executeUpdates() async {
+    final updates = Map.from(_updates);
+    final successfulUpdateIDs = <String>{};
+    for (final update in updates.entries) {
+      try {
+        await _setFirebaseValue(update.value);
+        successfulUpdateIDs.add(update.key);
+      } catch (ex) {
+        _logger.severe(
+          "Failed to update item with id ${update.key} and value ${_localPool.itemToJson(update.value)}",
+          ex,
+        );
+      }
+    }
+
+    for (final id in successfulUpdateIDs) {
+      _updates.remove(id);
     }
   }
 }

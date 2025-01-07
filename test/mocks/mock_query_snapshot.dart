@@ -8,10 +8,10 @@ class MockQuerySnapshot extends Mock
 
 class MockQueryDocumentSnapshot extends Mock
     implements QueryDocumentSnapshot<Map<String, dynamic>> {
-  final Map<String, dynamic> Function() getData;
+  final Map<String, dynamic>? Function() getData;
 
   MockQueryDocumentSnapshot({required this.getData});
 
   @override
-  Map<String, dynamic> data() => getData();
+  Map<String, dynamic> data() => getData() ?? {};
 }

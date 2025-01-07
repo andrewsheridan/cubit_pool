@@ -18,7 +18,7 @@ import 'mocks/stubbed_collection_reference.dart';
 enum UserType {
   loggedOut,
   anonymous,
-  nonAnon,
+  loggedIn,
 }
 
 void main() {
@@ -29,6 +29,8 @@ void main() {
   late CollectionReference<Map<String, dynamic>> collectionReference;
 
   const uid = "User ID";
+
+  const delayDuration = Duration(milliseconds: 250);
 
   const bear = Animal(
     id: "0",
@@ -60,7 +62,7 @@ void main() {
         when(() => user.uid).thenReturn(uid);
         when(() => firebaseAuth.currentUser).thenReturn(user);
         return user;
-      case UserType.nonAnon:
+      case UserType.loggedIn:
         final user = MockUser();
         when(() => user.isAnonymous).thenReturn(false);
         when(() => user.uid).thenReturn(uid);
@@ -105,6 +107,7 @@ void main() {
         auth: firebaseAuth,
         firestore: firestore,
         collectionPath: (user) => "${user.uid}/animals",
+        updateDelayDuration: delayDuration,
       );
 
   test(
@@ -136,7 +139,7 @@ void main() {
     () async {
       setUpLocalPool([]);
 
-      setupMockUser(UserType.nonAnon);
+      setupMockUser(UserType.loggedIn);
 
       final pool = build();
       await pumpEventQueue();
@@ -156,7 +159,7 @@ void main() {
 
       expect(pool.getByID(bear.id), bear);
 
-      final user = setupMockUser(UserType.nonAnon);
+      final user = setupMockUser(UserType.loggedIn);
       userStreamController.add(user);
 
       await pumpEventQueue();
@@ -178,7 +181,7 @@ void main() {
 
       expect(pool.getByID(bear.id), bear);
 
-      final user = setupMockUser(UserType.nonAnon);
+      final user = setupMockUser(UserType.loggedIn);
       userStreamController.add(user);
 
       await pumpEventQueue();
@@ -194,7 +197,7 @@ void main() {
     "Given there is a non-anon user signed in, when the user signs out, then switch to exposing HydratedCubit data.",
     () async {
       setUpLocalPool([]);
-      setupMockUser(UserType.nonAnon);
+      setupMockUser(UserType.loggedIn);
 
       final pool = build();
       await pumpEventQueue();
@@ -223,7 +226,7 @@ void main() {
 
       expect(pool.getByID(bear.id), bear);
 
-      final user = setupMockUser(UserType.nonAnon);
+      final user = setupMockUser(UserType.loggedIn);
 
       collectionReference = MockCollectionReference();
 
@@ -256,6 +259,7 @@ void main() {
       setupAnimalMocks([wolf]);
 
       final pool = build();
+      expect(pool.getByID(wolf.id), null);
 
       bool notifyCalled = false;
       pool.addListener(() {
@@ -265,6 +269,7 @@ void main() {
       pool.upsert(wolf);
 
       verify(() => localPool.upsert(wolf));
+      expect(pool.getByID(wolf.id), wolf);
       expect(notifyCalled, true);
     },
   );
@@ -278,6 +283,7 @@ void main() {
       setupAnimalMocks([wolf]);
 
       final pool = build();
+      expect(pool.getByID(wolf.id), null);
 
       bool notifyCalled = false;
       pool.addListener(() {
@@ -285,7 +291,7 @@ void main() {
       });
 
       pool.upsert(wolf);
-
+      expect(pool.getByID(wolf.id), wolf);
       verify(() => localPool.upsert(wolf));
       expect(notifyCalled, true);
     },
@@ -293,7 +299,34 @@ void main() {
 
   test(
     "Given there is a non-anon user logged in, when the data changes, immediately call notifyListeners() and after a delay update Firestore.",
-    () async {},
+    () async {
+      setupMockUser(UserType.loggedIn);
+
+      const wolf = Animal(id: "2", name: "Wolf", count: 2);
+      setupAnimalMocks([wolf]);
+
+      final pool = build();
+      expect(pool.getByID(wolf.id), null);
+
+      bool notifyCalled = false;
+      pool.addListener(() {
+        notifyCalled = true;
+      });
+
+      pool.upsert(wolf);
+      expect(notifyCalled, true);
+      expect(pool.getByID(wolf.id), wolf);
+
+      var data = await collectionReference.doc(wolf.id).get();
+      expect(data.data(), <String, dynamic>{});
+
+      await Future.delayed(delayDuration + const Duration(milliseconds: 100));
+
+      data = await collectionReference.doc(wolf.id).get();
+      expect(data.data(), wolf.toMap());
+
+      verifyNever(() => localPool.upsert(wolf));
+    },
   );
 
   // TODO: Unit tests for deleting
