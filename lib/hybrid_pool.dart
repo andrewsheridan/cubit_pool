@@ -18,6 +18,7 @@ class HybridPool<T> extends ChangeNotifier {
 
   Map<String, T> _state = {};
   final Map<String, T> _updates = {};
+  bool _syncing = false;
 
   Timer? _timer;
 
@@ -51,13 +52,20 @@ class HybridPool<T> extends ChangeNotifier {
   }
 
   Future<void> _getData(User? user) async {
+    if (_syncing) {
+      _logger.warning("Already syncing data. Returning.");
+      return;
+    }
+
+    _syncing = true;
+    notifyListeners();
+
     final useLocalPool = _shouldUseLocalPool(user);
 
     if (useLocalPool) {
       final data = _localPool.state;
       if (data != _state) {
         _state = data;
-        notifyListeners();
       }
     } else {
       final collection = _firestore.collection(collectionPath(user!));
@@ -84,8 +92,10 @@ class HybridPool<T> extends ChangeNotifier {
         data[id] = item;
       }
       _state = data;
-      notifyListeners();
     }
+
+    _syncing = false;
+    notifyListeners();
   }
 
   Future<void> _setFirebaseValue(T value) {
@@ -99,8 +109,8 @@ class HybridPool<T> extends ChangeNotifier {
   Future<void> upsert(T value) async {
     final id = _localPool.getItemID(value);
     _state[id] = value;
-
     notifyListeners();
+
     if (_shouldUseLocalPool(_auth.currentUser)) {
       _localPool.upsert(value);
     } else {
@@ -113,6 +123,7 @@ class HybridPool<T> extends ChangeNotifier {
   Future<void> delete(T value) async {
     final id = _localPool.getItemID(value);
     _state.remove(id);
+    notifyListeners();
 
     if (_shouldUseLocalPool(_auth.currentUser)) {
       _localPool.delete(value);
