@@ -16,6 +16,16 @@ class HybridPool<T> extends ChangeNotifier {
   final Duration _updateDelayDuration;
   late final StreamSubscription<User?> _userSubscription;
 
+  final StreamController<T> _itemAddedController = StreamController.broadcast();
+  final StreamController<T> _itemUpdatedController =
+      StreamController.broadcast();
+  final StreamController<T> _itemDeletedController =
+      StreamController.broadcast();
+
+  Stream<T> get itemAddedStream => _itemAddedController.stream;
+  Stream<T> get itemUpdatedStream => _itemUpdatedController.stream;
+  Stream<T> get itemDeletedStream => _itemDeletedController.stream;
+
   Map<String, T> _state = {};
   final Map<String, T> _updates = {};
   bool _syncing = false;
@@ -108,7 +118,16 @@ class HybridPool<T> extends ChangeNotifier {
 
   Future<void> upsert(T value) async {
     final id = _localPool.getItemID(value);
+    final alreadyExists = _state.containsKey(id);
+
     _state[id] = value;
+
+    if (alreadyExists) {
+      _itemUpdatedController.add(value);
+    } else {
+      _itemAddedController.add(value);
+    }
+
     notifyListeners();
 
     if (_shouldUseLocalPool(_auth.currentUser)) {
@@ -123,6 +142,7 @@ class HybridPool<T> extends ChangeNotifier {
   Future<void> delete(T value) async {
     final id = _localPool.getItemID(value);
     _state.remove(id);
+    _itemDeletedController.add(value);
     notifyListeners();
 
     if (_shouldUseLocalPool(_auth.currentUser)) {
