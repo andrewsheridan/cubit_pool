@@ -67,45 +67,52 @@ class HybridPool<T> extends ChangeNotifier {
       return;
     }
 
-    _syncing = true;
-    notifyListeners();
+    try {
+      _syncing = true;
+      notifyListeners();
 
-    final useLocalPool = _shouldUseLocalPool(user);
+      final useLocalPool = _shouldUseLocalPool(user);
 
-    if (useLocalPool) {
-      final data = _localPool.state;
-      if (data != _state) {
+      if (useLocalPool) {
+        final data = _localPool.state;
+        if (data != _state) {
+          _state = data;
+        }
+      } else {
+        final path = collectionPath(user!);
+        final collection = _firestore.collection(path);
+
+        final localData = _localPool.state;
+
+        _logger.info("Copying local data to cloud.");
+        for (final entry in localData.entries) {
+          try {
+            await _setFirebaseValue(entry.value);
+            _localPool.delete(entry.value);
+          } catch (ex) {
+            _logger.severe(
+              "Failed to upload local item ${entry.value.toString()}",
+            );
+          }
+        }
+
+        final snapshot = await collection.get();
+        final docs = snapshot.docs;
+        final data = <String, T>{};
+
+        for (final doc in docs) {
+          final item = _localPool.itemFromJson(doc.data());
+          final id = _localPool.getItemID(item);
+          data[id] = item;
+        }
         _state = data;
       }
-    } else {
-      final collection = _firestore.collection(collectionPath(user!));
-
-      final localData = _localPool.state;
-      for (final entry in localData.entries) {
-        try {
-          await _setFirebaseValue(entry.value);
-          _localPool.delete(entry.value);
-        } catch (ex) {
-          _logger.severe(
-            "Failed to upload local item ${entry.value.toString()}",
-          );
-        }
-      }
-
-      final snapshot = await collection.get();
-      final docs = snapshot.docs;
-      final data = <String, T>{};
-
-      for (final doc in docs) {
-        final item = _localPool.itemFromJson(doc.data());
-        final id = _localPool.getItemID(item);
-        data[id] = item;
-      }
-      _state = data;
+    } catch (ex) {
+      _logger.severe("Failed to get data.", ex);
+    } finally {
+      _syncing = false;
+      notifyListeners();
     }
-
-    _syncing = false;
-    notifyListeners();
   }
 
   Future<void> _setFirebaseValue(T value) {
