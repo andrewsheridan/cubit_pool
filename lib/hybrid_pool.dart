@@ -62,15 +62,7 @@ class HybridPool<T> extends ChangeNotifier {
   }
 
   Future<void> _getData(User? user) async {
-    if (_syncing) {
-      _logger.warning("Already syncing data. Returning.");
-      return;
-    }
-
     try {
-      _syncing = true;
-      notifyListeners();
-
       final useLocalPool = _shouldUseLocalPool(user);
 
       if (useLocalPool) {
@@ -84,15 +76,30 @@ class HybridPool<T> extends ChangeNotifier {
 
         final localData = _localPool.state;
 
-        _logger.info("Copying local data to cloud.");
-        for (final entry in localData.entries) {
+        if (_syncing) {
+          _logger.warning("Already syncing data.");
+        } else if (localData.isNotEmpty) {
           try {
-            await _setFirebaseValue(entry.value);
-            _localPool.delete(entry.value);
+            _logger.info("Copying local data to cloud.");
+            _syncing = true;
+            notifyListeners();
+
+            for (final entry in localData.entries) {
+              try {
+                await _setFirebaseValue(entry.value);
+                _localPool.delete(entry.value);
+              } catch (ex) {
+                _logger.severe(
+                  "Failed to upload local item ${entry.value.toString()}",
+                );
+              }
+            }
+            _logger.info("Finished copying local data to cloud.");
           } catch (ex) {
-            _logger.severe(
-              "Failed to upload local item ${entry.value.toString()}",
-            );
+            _logger.severe("Failed to upload local data.", ex);
+          } finally {
+            _syncing = false;
+            notifyListeners();
           }
         }
 
@@ -109,9 +116,6 @@ class HybridPool<T> extends ChangeNotifier {
       }
     } catch (ex) {
       _logger.severe("Failed to get data.", ex);
-    } finally {
-      _syncing = false;
-      notifyListeners();
     }
   }
 
