@@ -29,6 +29,8 @@ class HybridPool<T> extends ChangeNotifier {
   Map<String, T> _state = {};
   final Map<String, T> _updates = {};
   bool _syncing = false;
+  bool _initialLoadComplete = false;
+  bool get initialLoadComplete => _initialLoadComplete;
 
   Timer? _timer;
 
@@ -46,6 +48,9 @@ class HybridPool<T> extends ChangeNotifier {
         _auth = auth,
         _firestore = firestore,
         _updateDelayDuration = updateDelayDuration {
+    _logger.finer(
+      "CurrentUser when constructed: ${auth.currentUser == null ? "null" : auth.currentUser!.isAnonymous ? "Anonymous" : "Logged In"}",
+    );
     final userStream = _auth.userChanges();
     _userSubscription = userStream.listen(_getData);
     _getData(_auth.currentUser);
@@ -116,6 +121,11 @@ class HybridPool<T> extends ChangeNotifier {
       }
     } catch (ex) {
       _logger.severe("Failed to get data.", ex);
+    }
+
+    if (!_initialLoadComplete) {
+      _initialLoadComplete = true;
+      notifyListeners();
     }
   }
 
