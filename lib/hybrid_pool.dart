@@ -91,12 +91,14 @@ class HybridPool<T> extends ChangeNotifier {
     User? user, {
     bool isRefresh = false,
   }) async {
-    try {
-      _loadingState = isRefresh
-          ? HybridPoolLoadingState.refreshing
-          : HybridPoolLoadingState.loading;
-      notifyListeners();
+    _logger.info("Getting data for user ${user?.uid ?? "null"}");
 
+    _loadingState = isRefresh
+        ? HybridPoolLoadingState.refreshing
+        : HybridPoolLoadingState.loading;
+    notifyListeners();
+
+    try {
       final useLocalPool = _shouldUseLocalPool(user);
 
       if (useLocalPool) {
@@ -110,10 +112,7 @@ class HybridPool<T> extends ChangeNotifier {
 
         final localData = _localPool.state;
 
-        if ([HybridPoolLoadingState.loading, HybridPoolLoadingState.refreshing]
-            .contains(_loadingState)) {
-          _logger.warning("Already syncing data.");
-        } else if (localData.isNotEmpty) {
+        if (localData.isNotEmpty) {
           try {
             _logger.info("Copying local data to cloud.");
 
