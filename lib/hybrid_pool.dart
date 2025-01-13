@@ -7,6 +7,25 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 
+enum HybridPoolLoadingState {
+  notLoaded,
+  loading,
+  loaded,
+  refreshing,
+}
+
+sealed class HybridPoolUser {}
+
+class NotLoggedInUser implements HybridPoolUser {}
+
+class AnonymousUser implements HybridPoolUser {}
+
+class LoggedInUser implements HybridPoolUser {
+  final String uid;
+
+  LoggedInUser({required this.uid});
+}
+
 class HybridPool<T> extends ChangeNotifier {
   final HydratedCubitPool<T> _localPool;
   final FirebaseAuth _auth;
@@ -28,9 +47,11 @@ class HybridPool<T> extends ChangeNotifier {
 
   Map<String, T> _state = {};
   final Map<String, T> _updates = {};
-  bool _syncing = false;
-  bool _initialLoadComplete = false;
-  bool get initialLoadComplete => _initialLoadComplete;
+  HybridPoolLoadingState _loadingState = HybridPoolLoadingState.notLoaded;
+  HybridPoolLoadingState get loadingState => _loadingState;
+
+  User? _syncedUser;
+  User? get syncedUser => _syncedUser;
 
   Timer? _timer;
 
@@ -53,7 +74,7 @@ class HybridPool<T> extends ChangeNotifier {
     );
     final userStream = _auth.userChanges();
     _userSubscription = userStream.listen(_getData);
-    _getData(_auth.currentUser);
+    // _getData(_auth.currentUser);
   }
 
   @override
@@ -66,8 +87,16 @@ class HybridPool<T> extends ChangeNotifier {
     return user == null || user.isAnonymous;
   }
 
-  Future<void> _getData(User? user) async {
+  Future<void> _getData(
+    User? user, {
+    bool isRefresh = false,
+  }) async {
     try {
+      _loadingState = isRefresh
+          ? HybridPoolLoadingState.refreshing
+          : HybridPoolLoadingState.loading;
+      notifyListeners();
+
       final useLocalPool = _shouldUseLocalPool(user);
 
       if (useLocalPool) {
@@ -81,13 +110,12 @@ class HybridPool<T> extends ChangeNotifier {
 
         final localData = _localPool.state;
 
-        if (_syncing) {
+        if ([HybridPoolLoadingState.loading, HybridPoolLoadingState.refreshing]
+            .contains(_loadingState)) {
           _logger.warning("Already syncing data.");
         } else if (localData.isNotEmpty) {
           try {
             _logger.info("Copying local data to cloud.");
-            _syncing = true;
-            notifyListeners();
 
             for (final entry in localData.entries) {
               try {
@@ -102,9 +130,6 @@ class HybridPool<T> extends ChangeNotifier {
             _logger.info("Finished copying local data to cloud.");
           } catch (ex) {
             _logger.severe("Failed to upload local data.", ex);
-          } finally {
-            _syncing = false;
-            notifyListeners();
           }
         }
 
@@ -123,10 +148,10 @@ class HybridPool<T> extends ChangeNotifier {
       _logger.severe("Failed to get data.", ex);
     }
 
-    if (!_initialLoadComplete) {
-      _initialLoadComplete = true;
-      notifyListeners();
-    }
+    _logger.info("Loading complete.");
+    _loadingState = HybridPoolLoadingState.loaded;
+    _syncedUser = user;
+    notifyListeners();
   }
 
   Future<void> _setFirebaseValue(T value) {
