@@ -50,8 +50,8 @@ class HybridPool<T> extends ChangeNotifier {
   HybridPoolLoadingState _loadingState = HybridPoolLoadingState.notLoaded;
   HybridPoolLoadingState get loadingState => _loadingState;
 
-  User? _syncedUser;
-  User? get syncedUser => _syncedUser;
+  String? _syncedUserID;
+  String? get syncedUserID => _syncedUserID;
 
   Timer? _timer;
 
@@ -149,7 +149,7 @@ class HybridPool<T> extends ChangeNotifier {
 
     _logger.info("Loading complete.");
     _loadingState = HybridPoolLoadingState.loaded;
-    _syncedUser = user;
+    _syncedUserID = user?.uid;
     notifyListeners();
   }
 
