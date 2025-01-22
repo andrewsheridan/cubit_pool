@@ -462,6 +462,4 @@ void main() {
       expect(pool.getByID(sheep.id), sheep);
     },
   );
-
-  // TODO: Test the streams.
 }

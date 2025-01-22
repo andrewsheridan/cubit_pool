@@ -31,7 +31,7 @@ class HybridPool<T> extends ChangeNotifier {
   final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
   final String Function(User user) collectionPath;
-  final Logger _logger = Logger("HybridPool");
+  late final Logger _logger = Logger("HybridPool<${T.toString()}>");
   final Duration _updateDelayDuration;
   late final StreamSubscription<User?> _userSubscription;
 
