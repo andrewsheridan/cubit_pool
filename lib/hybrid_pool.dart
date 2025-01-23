@@ -162,6 +162,7 @@ class HybridPool<T> extends ChangeNotifier {
   }
 
   Future<void> upsert(T value) async {
+    _logger.finer("Upserting ${T.toString()}.");
     final id = _localPool.getItemID(value);
     final alreadyExists = _state.containsKey(id);
 
