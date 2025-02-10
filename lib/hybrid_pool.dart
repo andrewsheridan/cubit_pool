@@ -74,7 +74,7 @@ class HybridPool<T> extends ChangeNotifier {
     );
     final userStream = _auth.userChanges();
     _userSubscription = userStream.listen(_getData);
-    // _getData(_auth.currentUser);
+    _getData(_auth.currentUser);
   }
 
   @override
