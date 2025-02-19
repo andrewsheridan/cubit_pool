@@ -26,6 +26,13 @@ class LoggedInUser implements HybridPoolUser {
   LoggedInUser({required this.uid});
 }
 
+class ItemUpdatedEvent<T> {
+  final T before;
+  final T after;
+
+  ItemUpdatedEvent(this.before, this.after);
+}
+
 class HybridPool<T> extends ChangeNotifier {
   final HydratedCubitPool<T> _localPool;
   final FirebaseAuth _auth;
@@ -36,13 +43,14 @@ class HybridPool<T> extends ChangeNotifier {
   late final StreamSubscription<User?> _userSubscription;
 
   final StreamController<T> _itemAddedController = StreamController.broadcast();
-  final StreamController<T> _itemUpdatedController =
+  final StreamController<ItemUpdatedEvent<T>> _itemUpdatedController =
       StreamController.broadcast();
   final StreamController<T> _itemDeletedController =
       StreamController.broadcast();
 
   Stream<T> get itemAddedStream => _itemAddedController.stream;
-  Stream<T> get itemUpdatedStream => _itemUpdatedController.stream;
+  Stream<ItemUpdatedEvent<T>> get itemUpdatedStream =>
+      _itemUpdatedController.stream;
   Stream<T> get itemDeletedStream => _itemDeletedController.stream;
 
   Map<String, T> _state = {};
@@ -164,12 +172,12 @@ class HybridPool<T> extends ChangeNotifier {
   Future<void> upsert(T value) async {
     _logger.finer("Upserting ${T.toString()}.");
     final id = _localPool.getItemID(value);
-    final alreadyExists = _state.containsKey(id);
+    final before = _state[id];
 
     _state[id] = value;
 
-    if (alreadyExists) {
-      _itemUpdatedController.add(value);
+    if (before != null) {
+      _itemUpdatedController.add(ItemUpdatedEvent(before, value));
     } else {
       _itemAddedController.add(value);
     }
