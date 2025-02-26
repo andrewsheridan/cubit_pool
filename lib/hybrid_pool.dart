@@ -81,8 +81,8 @@ class HybridPool<T> extends ChangeNotifier {
       "CurrentUser when constructed: ${auth.currentUser == null ? "null" : auth.currentUser!.isAnonymous ? "Anonymous" : "Logged In"}",
     );
     final userStream = _auth.userChanges();
-    _userSubscription = userStream.listen(_getData);
-    _getData(_auth.currentUser);
+    _userSubscription = userStream.listen(syncData);
+    syncData(_auth.currentUser);
   }
 
   @override
@@ -95,7 +95,8 @@ class HybridPool<T> extends ChangeNotifier {
     return user == null || user.isAnonymous;
   }
 
-  Future<void> _getData(
+  @protected
+  Future<void> syncData(
     User? user, {
     bool isRefresh = false,
   }) async {
@@ -218,7 +219,7 @@ class HybridPool<T> extends ChangeNotifier {
   }
 
   Future<void> refresh() {
-    return _getData(_auth.currentUser);
+    return syncData(_auth.currentUser);
   }
 
   Future<void> _executeUpdates() async {
