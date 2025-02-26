@@ -96,6 +96,7 @@ class HybridPool<T> extends ChangeNotifier {
   }
 
   @protected
+  @mustCallSuper
   Future<void> syncData(
     User? user, {
     bool isRefresh = false,
