@@ -34,11 +34,13 @@ class ItemUpdatedEvent<T> {
 }
 
 class HybridPool<T> extends ChangeNotifier {
-  final HydratedCubitPool<T> _localPool;
+  @protected
+  final HydratedCubitPool<T> localPool;
   final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
   final String Function(User user) collectionPath;
-  late final Logger _logger = Logger("HybridPool<${T.toString()}>");
+  @protected
+  late final Logger logger = Logger("HybridPool<${T.toString()}>");
   final Duration _updateDelayDuration;
   late final StreamSubscription<User?> _userSubscription;
 
@@ -68,16 +70,15 @@ class HybridPool<T> extends ChangeNotifier {
   UnmodifiableMapView<String, T> get state => UnmodifiableMapView(_state);
 
   HybridPool({
-    required HydratedCubitPool<T> localPool,
+    required this.localPool,
     required FirebaseAuth auth,
     required FirebaseFirestore firestore,
     required this.collectionPath,
     required Duration updateDelayDuration,
-  })  : _localPool = localPool,
-        _auth = auth,
+  })  : _auth = auth,
         _firestore = firestore,
         _updateDelayDuration = updateDelayDuration {
-    _logger.finer(
+    logger.finer(
       "CurrentUser when constructed: ${auth.currentUser == null ? "null" : auth.currentUser!.isAnonymous ? "Anonymous" : "Logged In"}",
     );
     final userStream = _auth.userChanges();
@@ -101,7 +102,7 @@ class HybridPool<T> extends ChangeNotifier {
     User? user, {
     bool isRefresh = false,
   }) async {
-    _logger.info("Getting data for user ${user?.uid ?? "null"}");
+    logger.info("Getting data for user ${user?.uid ?? "null"}");
 
     _loadingState = isRefresh
         ? HybridPoolLoadingState.refreshing
@@ -112,7 +113,7 @@ class HybridPool<T> extends ChangeNotifier {
       final useLocalPool = _shouldUseLocalPool(user);
 
       if (useLocalPool) {
-        final data = _localPool.state;
+        final data = localPool.state;
         if (data != _state) {
           _state = data;
         }
@@ -120,25 +121,25 @@ class HybridPool<T> extends ChangeNotifier {
         final path = collectionPath(user!);
         final collection = _firestore.collection(path);
 
-        final localData = _localPool.state;
+        final localData = localPool.state;
 
         if (localData.isNotEmpty) {
           try {
-            _logger.info("Copying local data to cloud.");
+            logger.info("Copying local data to cloud.");
 
             for (final entry in localData.entries) {
               try {
                 await _setFirebaseValue(entry.value);
-                _localPool.delete(entry.value);
+                localPool.delete(entry.value);
               } catch (ex) {
-                _logger.severe(
+                logger.severe(
                   "Failed to upload local item ${entry.value.toString()}",
                 );
               }
             }
-            _logger.info("Finished copying local data to cloud.");
+            logger.info("Finished copying local data to cloud.");
           } catch (ex) {
-            _logger.severe("Failed to upload local data.", ex);
+            logger.severe("Failed to upload local data.", ex);
           }
         }
 
@@ -147,33 +148,33 @@ class HybridPool<T> extends ChangeNotifier {
         final data = <String, T>{};
 
         for (final doc in docs) {
-          final item = _localPool.itemFromJson(doc.data());
-          final id = _localPool.getItemID(item);
+          final item = localPool.itemFromJson(doc.data());
+          final id = localPool.getItemID(item);
           data[id] = item;
         }
         _state = data;
       }
     } catch (ex) {
-      _logger.severe("Failed to get data.", ex);
+      logger.severe("Failed to get data.", ex);
     }
 
-    _logger.info("Loading complete.");
+    logger.info("Loading complete.");
     _loadingState = HybridPoolLoadingState.loaded;
     _syncedUserID = user?.uid;
     notifyListeners();
   }
 
   Future<void> _setFirebaseValue(T value) {
-    final id = _localPool.getItemID(value);
+    final id = localPool.getItemID(value);
     return _firestore
         .collection(collectionPath(_auth.currentUser!))
         .doc(id)
-        .set(_localPool.itemToJson(value));
+        .set(localPool.itemToJson(value));
   }
 
   Future<void> upsert(T value) async {
-    _logger.finer("Upserting ${T.toString()}.");
-    final id = _localPool.getItemID(value);
+    logger.finer("Upserting ${T.toString()}.");
+    final id = localPool.getItemID(value);
     final before = _state[id];
 
     _state[id] = value;
@@ -187,7 +188,7 @@ class HybridPool<T> extends ChangeNotifier {
     notifyListeners();
 
     if (_shouldUseLocalPool(_auth.currentUser)) {
-      _localPool.upsert(value);
+      localPool.upsert(value);
     } else {
       _updates[id] = value;
       _timer?.cancel();
@@ -196,13 +197,13 @@ class HybridPool<T> extends ChangeNotifier {
   }
 
   Future<void> delete(T value) async {
-    final id = _localPool.getItemID(value);
+    final id = localPool.getItemID(value);
     _state.remove(id);
     _itemDeletedController.add(value);
     notifyListeners();
 
     if (_shouldUseLocalPool(_auth.currentUser)) {
-      _localPool.delete(value);
+      localPool.delete(value);
     } else {
       try {
         return _firestore
@@ -210,7 +211,7 @@ class HybridPool<T> extends ChangeNotifier {
             .doc(id)
             .delete();
       } catch (ex) {
-        _logger.severe(
+        logger.severe(
           "Failed to remove item from Firebase storage.",
           ex,
         );
@@ -231,8 +232,8 @@ class HybridPool<T> extends ChangeNotifier {
         await _setFirebaseValue(update.value);
         successfulUpdateIDs.add(update.key);
       } catch (ex) {
-        _logger.severe(
-          "Failed to update item with id ${update.key} and value ${_localPool.itemToJson(update.value)}",
+        logger.severe(
+          "Failed to update item with id ${update.key} and value ${localPool.itemToJson(update.value)}",
           ex,
         );
       }
