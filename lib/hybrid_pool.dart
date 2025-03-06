@@ -33,7 +33,7 @@ class ItemUpdatedEvent<T> {
   ItemUpdatedEvent(this.before, this.after);
 }
 
-class HybridPool<T> extends ChangeNotifier {
+abstract class HybridPool<T> extends ChangeNotifier {
   @protected
   final HydratedCubitPool<T> localPool;
   final FirebaseAuth _auth;
@@ -55,8 +55,8 @@ class HybridPool<T> extends ChangeNotifier {
       _itemUpdatedController.stream;
   Stream<T> get itemDeletedStream => _itemDeletedController.stream;
 
-  Map<String, T> _state = {};
-  final Map<String, T> _updates = {};
+  final Map<String, T> _state = <String, T>{};
+  final Map<String, T> _updates = <String, T>{};
   HybridPoolLoadingState _loadingState = HybridPoolLoadingState.notLoaded;
   HybridPoolLoadingState get loadingState => _loadingState;
 
@@ -115,7 +115,8 @@ class HybridPool<T> extends ChangeNotifier {
       if (useLocalPool) {
         final data = localPool.state;
         if (data != _state) {
-          _state = data;
+          _state.clear();
+          _state.addAll(localPool.state);
         }
       } else {
         final path = collectionPath(user!);
@@ -152,7 +153,8 @@ class HybridPool<T> extends ChangeNotifier {
           final id = localPool.getItemID(item);
           data[id] = item;
         }
-        _state = data;
+        _state.clear();
+        _state.addAll(data);
       }
     } catch (ex) {
       logger.severe("Failed to get data.", ex);

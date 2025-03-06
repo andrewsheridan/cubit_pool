@@ -21,6 +21,16 @@ enum UserType {
   loggedIn,
 }
 
+class AnimalPool extends HybridPool<Animal> {
+  AnimalPool({
+    required super.localPool,
+    required super.auth,
+    required super.firestore,
+    required super.collectionPath,
+    required super.updateDelayDuration,
+  });
+}
+
 void main() {
   late MockHydratedCubitPool<Animal> localPool;
   late MockFirebaseAuth firebaseAuth;
@@ -102,7 +112,7 @@ void main() {
     collectionReference.doc(deer.id).set(deer.toMap());
   });
 
-  HybridPool<Animal> build() => HybridPool<Animal>(
+  HybridPool<Animal> build() => AnimalPool(
         localPool: localPool,
         auth: firebaseAuth,
         firestore: firestore,
