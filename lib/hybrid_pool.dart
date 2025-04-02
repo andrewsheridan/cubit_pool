@@ -175,7 +175,6 @@ abstract class HybridPool<T> extends ChangeNotifier {
   }
 
   Future<void> upsert(T value) async {
-    logger.finer("Upserting ${T.toString()}.");
     final id = localPool.getItemID(value);
     final before = _state[id];
 
