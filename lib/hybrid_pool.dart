@@ -7,12 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 
-enum HybridPoolLoadingState {
-  notLoaded,
-  loading,
-  loaded,
-  refreshing,
-}
+enum HybridPoolLoadingState { notLoaded, loading, loaded, refreshing }
 
 sealed class HybridPoolUser {}
 
@@ -75,11 +70,15 @@ abstract class HybridPool<T> extends ChangeNotifier {
     required FirebaseFirestore firestore,
     required this.collectionPath,
     required Duration updateDelayDuration,
-  })  : _auth = auth,
-        _firestore = firestore,
-        _updateDelayDuration = updateDelayDuration {
+  }) : _auth = auth,
+       _firestore = firestore,
+       _updateDelayDuration = updateDelayDuration {
     logger.finer(
-      "CurrentUser when constructed: ${auth.currentUser == null ? "null" : auth.currentUser!.isAnonymous ? "Anonymous" : "Logged In"}",
+      "CurrentUser when constructed: ${auth.currentUser == null
+          ? "null"
+          : auth.currentUser!.isAnonymous
+          ? "Anonymous"
+          : "Logged In"}",
     );
     final userStream = _auth.userChanges();
     _userSubscription = userStream.listen(syncData);
@@ -98,15 +97,13 @@ abstract class HybridPool<T> extends ChangeNotifier {
 
   @protected
   @mustCallSuper
-  Future<void> syncData(
-    User? user, {
-    bool isRefresh = false,
-  }) async {
+  Future<void> syncData(User? user, {bool isRefresh = false}) async {
     logger.info("Getting data for user ${user?.uid ?? "null"}");
 
-    _loadingState = isRefresh
-        ? HybridPoolLoadingState.refreshing
-        : HybridPoolLoadingState.loading;
+    _loadingState =
+        isRefresh
+            ? HybridPoolLoadingState.refreshing
+            : HybridPoolLoadingState.loading;
     notifyListeners();
 
     try {
@@ -162,7 +159,8 @@ abstract class HybridPool<T> extends ChangeNotifier {
 
     logger.info("Loading complete.");
     _loadingState = HybridPoolLoadingState.loaded;
-    _syncedUserID = user?.uid;
+    _syncedUserID = user == null || user.isAnonymous ? null : user.uid;
+
     notifyListeners();
   }
 
@@ -212,10 +210,7 @@ abstract class HybridPool<T> extends ChangeNotifier {
             .doc(id)
             .delete();
       } catch (ex) {
-        logger.severe(
-          "Failed to remove item from Firebase storage.",
-          ex,
-        );
+        logger.severe("Failed to remove item from Firebase storage.", ex);
         rethrow;
       }
     }
