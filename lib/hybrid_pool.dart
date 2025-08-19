@@ -44,11 +44,15 @@ abstract class HybridPool<T> extends ChangeNotifier {
       StreamController.broadcast();
   final StreamController<T> _itemDeletedController =
       StreamController.broadcast();
+  final StreamController<HybridPoolLoadingState> _loadingStateController =
+      StreamController.broadcast();
 
   Stream<T> get itemAddedStream => _itemAddedController.stream;
   Stream<ItemUpdatedEvent<T>> get itemUpdatedStream =>
       _itemUpdatedController.stream;
   Stream<T> get itemDeletedStream => _itemDeletedController.stream;
+  Stream<HybridPoolLoadingState> get loadingStateStream =>
+      _loadingStateController.stream;
 
   final Map<String, T> _state = <String, T>{};
   final Map<String, T> _updates = <String, T>{};
@@ -91,6 +95,12 @@ abstract class HybridPool<T> extends ChangeNotifier {
     super.dispose();
   }
 
+  Future<void> waitForLoad() async {
+    await loadingStateStream.firstWhere(
+      (s) => s == HybridPoolLoadingState.loaded,
+    );
+  }
+
   bool _shouldUseLocalPool(User? user) {
     return user == null || user.isAnonymous;
   }
@@ -104,6 +114,7 @@ abstract class HybridPool<T> extends ChangeNotifier {
         isRefresh
             ? HybridPoolLoadingState.refreshing
             : HybridPoolLoadingState.loading;
+    _loadingStateController.add(_loadingState);
     notifyListeners();
 
     try {
@@ -159,6 +170,7 @@ abstract class HybridPool<T> extends ChangeNotifier {
 
     logger.info("Loading complete.");
     _loadingState = HybridPoolLoadingState.loaded;
+    _loadingStateController.add(_loadingState);
     _syncedUserID = user == null || user.isAnonymous ? null : user.uid;
 
     notifyListeners();
