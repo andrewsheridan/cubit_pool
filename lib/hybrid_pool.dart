@@ -96,6 +96,8 @@ abstract class HybridPool<T> extends ChangeNotifier {
   }
 
   Future<void> waitForLoad() async {
+    if (_loadingState == HybridPoolLoadingState.loaded) return;
+
     await loadingStateStream.firstWhere(
       (s) => s == HybridPoolLoadingState.loaded,
     );
