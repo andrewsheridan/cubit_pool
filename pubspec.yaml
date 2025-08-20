@@ -6,6 +6,8 @@ homepage: null
 environment:
   sdk: ">=3.7.2 <4.0.0"
 
+publish_to: none
+
 dependencies:
   cloud_firestore: ^5.6.0
   firebase_auth: ^5.3.4
