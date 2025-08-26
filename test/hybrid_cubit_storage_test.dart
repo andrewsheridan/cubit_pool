@@ -19,14 +19,19 @@ import 'mocks/mock_user.dart';
 
 enum UserType { loggedOut, anonymous, loggedIn }
 
+const String animalsProperty = "animals";
+
 class AnimalStorage extends HybridCubitStorage<AnimalListState> {
   AnimalStorage({
     required super.localCubit,
     required super.auth,
     required super.firestore,
-    required super.docPath,
     required super.updateDelayDuration,
-  }) : super(defaultValue: AnimalListState());
+  }) : super(
+         defaultValue: AnimalListState(),
+         firebaseProperty: animalsProperty,
+         docPath: (user) => "users/${user.uid}",
+       );
 }
 
 void main() {
@@ -36,7 +41,7 @@ void main() {
   late StreamController<User?> userStreamController;
   late DocumentReference<Map<String, dynamic>> docReference;
 
-  const uid = "User ID";
+  const uid = "UserID";
 
   const delayDuration = Duration(milliseconds: 250);
 
@@ -65,7 +70,7 @@ void main() {
     );
     currentFirebaseValue = state;
     final snapshot = MockQueryDocumentSnapshot(
-      getData: () => currentFirebaseValue?.toJson(),
+      getData: () => {animalsProperty: currentFirebaseValue?.toJson()},
     );
 
     when(() => docReference.get()).thenAnswer((invocation) async => snapshot);
@@ -120,12 +125,12 @@ void main() {
       return (invocation.positionalArguments.first as AnimalListState?)
           ?.toJson();
     });
-    when(() => firestore.doc("$uid/animals")).thenReturn(docReference);
-    when(() => docReference.set(any())).thenAnswer((invocation) async {
+    when(() => firestore.doc(any())).thenReturn(docReference);
+    when(() => docReference.update(any())).thenAnswer((invocation) async {
       final argument = invocation.positionalArguments.first;
       currentFirebaseValue = argument == null
           ? null
-          : AnimalListState.fromJson(argument);
+          : AnimalListState.fromJson(argument[animalsProperty]);
     });
     when(
       () => firebaseAuth.userChanges(),
@@ -136,7 +141,6 @@ void main() {
     localCubit: animalCubit,
     auth: firebaseAuth,
     firestore: firestore,
-    docPath: (user) => "${user.uid}/animals",
     updateDelayDuration: delayDuration,
   );
 
@@ -199,7 +203,7 @@ void main() {
 
       expect(pool.state, localState);
       expect(currentFirebaseValue, localState);
-      verify(() => docReference.set(localState.toJson()));
+      verify(() => docReference.update({animalsProperty: localState.toJson()}));
       verify(() => animalCubit.setState(AnimalListState()));
       verify(() => animalCubit.clear());
     },
@@ -223,7 +227,7 @@ void main() {
 
       expect(pool.state, localState);
       expect(currentFirebaseValue, localState);
-      verify(() => docReference.set(localState.toJson()));
+      verify(() => docReference.update({animalsProperty: localState.toJson()}));
       verify(() => animalCubit.setState(AnimalListState()));
       verify(() => animalCubit.clear());
     },
@@ -268,7 +272,7 @@ void main() {
         Exception("Some error when getting a doc from the collection."),
       );
 
-      when(() => firestore.doc("$uid/animals")).thenReturn(docReference);
+      when(() => firestore.doc("users/$uid")).thenReturn(docReference);
 
       final user = setupMockUser(UserType.loggedIn);
       userStreamController.add(user);
@@ -302,7 +306,7 @@ void main() {
       );
       pool.setState(updatedState);
       verify(() => animalCubit.setState(updatedState));
-      verifyNever(() => docReference.set(any()));
+      verifyNever(() => docReference.update(any()));
       expect(pool.state, updatedState);
       expect(notifyCalled, true);
     },
@@ -330,7 +334,7 @@ void main() {
       );
       pool.setState(updatedState);
       verify(() => animalCubit.setState(updatedState));
-      verifyNever(() => docReference.set(any()));
+      verifyNever(() => docReference.update(any()));
       expect(pool.state, updatedState);
       expect(notifyCalled, true);
     },
@@ -364,12 +368,12 @@ void main() {
       expect(pool.state, updatedState);
 
       var data = await docReference.get();
-      expect(data.data(), firebaseState.toJson());
+      expect(data.data()![animalsProperty], firebaseState.toJson());
 
       await Future.delayed(delayDuration + const Duration(milliseconds: 100));
 
       data = await docReference.get();
-      expect(data.data(), updatedState.toJson());
+      expect(data.data()![animalsProperty], updatedState.toJson());
 
       verifyNever(() => animalCubit.setState(any()));
     },
@@ -441,7 +445,7 @@ void main() {
         currentAnimalID: sheep.id,
       );
 
-      await docReference.set(updatedState.toJson());
+      await docReference.update({animalsProperty: updatedState.toJson()});
 
       expect(pool.state, initialFirebaseState);
 

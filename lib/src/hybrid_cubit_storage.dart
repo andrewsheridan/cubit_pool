@@ -13,6 +13,7 @@ abstract class HybridCubitStorage<T> extends ChangeNotifier {
   final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
   final String Function(User user) docPath;
+  final String firebaseProperty;
   final T defaultValue;
   @protected
   late final Logger logger = Logger("HybridPool<${T.toString()}>");
@@ -49,6 +50,7 @@ abstract class HybridCubitStorage<T> extends ChangeNotifier {
     required this.docPath,
     required Duration updateDelayDuration,
     required this.defaultValue,
+    required this.firebaseProperty,
   }) : _auth = auth,
        _firestore = firestore,
        _updateDelayDuration = updateDelayDuration {
@@ -132,7 +134,7 @@ abstract class HybridCubitStorage<T> extends ChangeNotifier {
         final data = snapshot.data();
         _state = data == null
             ? defaultValue
-            : localCubit.fromJson(data) ?? defaultValue;
+            : localCubit.fromJson(data[firebaseProperty]) ?? defaultValue;
       }
     } catch (ex) {
       logger.severe("Failed to get data.", ex);
@@ -149,7 +151,10 @@ abstract class HybridCubitStorage<T> extends ChangeNotifier {
   Future<void> _setFirebaseValue(T value) async {
     final json = localCubit.toJson(value);
     if (json == null) return;
-    return _firestore.doc(docPath(_auth.currentUser!)).set(json);
+
+    return _firestore.doc(docPath(_auth.currentUser!)).update({
+      firebaseProperty: json,
+    });
   }
 
   void setState(T value) {
