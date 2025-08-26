@@ -114,6 +114,7 @@ abstract class HybridCubitStorage<T> extends ChangeNotifier {
 
             try {
               await _setFirebaseValue(localData);
+              localCubit.setState(defaultValue);
               localCubit.clear();
             } catch (ex) {
               logger.severe(
@@ -152,7 +153,7 @@ abstract class HybridCubitStorage<T> extends ChangeNotifier {
     return _firestore.doc(docPath(_auth.currentUser!)).set(json);
   }
 
-  Future<void> setValue(T value) async {
+  Future<void> setState(T value) async {
     final before = _state;
     _state = value;
 

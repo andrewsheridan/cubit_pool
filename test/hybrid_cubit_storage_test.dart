@@ -181,186 +181,199 @@ void main() {
     },
   );
 
-  // test(
-  //   "Given there is no user logged in, when a non-anon user signs in, then copy HydratedCubit data to Firebase and delete it from HydratedCubit.",
-  //   () async {
-  //     when(() => firebaseAuth.currentUser).thenReturn(null);
+  test(
+    "Given there is no user logged in, when a non-anon user signs in, then copy HydratedCubit data to Firebase and delete it from HydratedCubit.",
+    () async {
+      setupMockUser(UserType.loggedOut);
+      final localState = setUpLocalPool([deer, bear], bear.id);
 
-  //     final pool = build();
-  //     await pumpEventQueue();
+      final pool = build();
+      await pumpEventQueue();
 
-  //     expect(pool.getByID(bear.id), bear);
+      expect(pool.state, localState);
 
-  //     final user = setupMockUser(UserType.loggedIn);
-  //     userStreamController.add(user);
+      final user = setupMockUser(UserType.loggedIn);
+      userStreamController.add(user);
 
-  //     await pumpEventQueue();
+      await pumpEventQueue();
 
-  //     expect(pool.getByID(bear.id), bear);
-  //     expect(pool.getByID(deer.id), deer);
+      expect(pool.state, localState);
+      expect(currentFirebaseValue, localState);
+      verify(() => docReference.set(localState.toJson()));
+      verify(() => animalCubit.setState(AnimalListState()));
+      verify(() => animalCubit.clear());
+    },
+  );
 
-  //     verify(() => animalCubit.delete(bear));
-  //   },
-  // );
+  test(
+    "Given there is an anonymous user logged in, when a non-anon user signs in, then copy HydratedCubit data to Firebase and delete it from HydratedCubit.",
+    () async {
+      setupMockUser(UserType.anonymous);
+      final localState = setUpLocalPool([deer, bear], bear.id);
 
-  // test(
-  //   "Given there is an anonymous user logged in, when a non-anon user signs in, then copy HydratedCubit data to Firebase and delete it from HydratedCubit.",
-  //   () async {
-  //     setupMockUser(UserType.anonymous);
+      final pool = build();
+      await pumpEventQueue();
 
-  //     final pool = build();
-  //     await pumpEventQueue();
+      expect(pool.state, localState);
 
-  //     expect(pool.getByID(bear.id), bear);
+      final user = setupMockUser(UserType.loggedIn);
+      userStreamController.add(user);
 
-  //     final user = setupMockUser(UserType.loggedIn);
-  //     userStreamController.add(user);
+      await pumpEventQueue();
 
-  //     await pumpEventQueue();
+      expect(pool.state, localState);
+      expect(currentFirebaseValue, localState);
+      verify(() => docReference.set(localState.toJson()));
+      verify(() => animalCubit.setState(AnimalListState()));
+      verify(() => animalCubit.clear());
+    },
+  );
 
-  //     expect(pool.getByID(bear.id), bear);
-  //     expect(pool.getByID(deer.id), deer);
+  test(
+    "Given there is a non-anon user signed in, when the user signs out, then switch to exposing HydratedCubit data.",
+    () async {
+      setUpLocalPool([], null);
+      final firebaseState = setUpFirebase([bear, deer], deer.id);
+      setupMockUser(UserType.loggedIn);
 
-  //     verify(() => animalCubit.delete(bear));
-  //   },
-  // );
+      final pool = build();
+      await pumpEventQueue();
 
-  // test(
-  //   "Given there is a non-anon user signed in, when the user signs out, then switch to exposing HydratedCubit data.",
-  //   () async {
-  //     setUpLocalPool([]);
-  //     setupMockUser(UserType.loggedIn);
+      expect(pool.state, firebaseState);
 
-  //     final pool = build();
-  //     await pumpEventQueue();
+      final localState = setUpLocalPool([bear], bear.id);
 
-  //     expect(pool.getByID(deer.id), deer);
-  //     expect(pool.getByID(bear.id), null);
+      userStreamController.add(null);
 
-  //     setUpLocalPool([bear]);
+      await pumpEventQueue();
 
-  //     userStreamController.add(null);
+      expect(pool.state, localState);
+    },
+  );
 
-  //     await pumpEventQueue();
+  test(
+    "Given there is no user logged in, when a non-anon user signs in and Firebase data copy fails, do not delete HydratedCubit data.",
+    () async {
+      when(() => firebaseAuth.currentUser).thenReturn(null);
+      final localData = setUpLocalPool([bear, deer], null);
 
-  //     expect(pool.getByID(bear.id), bear);
-  //     expect(pool.getByID(deer.id), null);
-  //   },
-  // );
+      final pool = build();
+      await pumpEventQueue();
 
-  // test(
-  //   "Given there is no user logged in, when a non-anon user signs in and Firebase data copy fails, do not delete HydratedCubit data.",
-  //   () async {
-  //     when(() => firebaseAuth.currentUser).thenReturn(null);
+      expect(pool.state, localData);
 
-  //     final pool = build();
-  //     await pumpEventQueue();
+      docReference = MockDocumentReference();
 
-  //     expect(pool.getByID(bear.id), bear);
+      when(() => docReference.get(any())).thenThrow(
+        Exception("Some error when getting a doc from the collection."),
+      );
 
-  //     final user = setupMockUser(UserType.loggedIn);
+      when(() => firestore.doc("$uid/animals")).thenReturn(docReference);
 
-  //     collectionReference = MockCollectionReference();
+      final user = setupMockUser(UserType.loggedIn);
+      userStreamController.add(user);
 
-  //     when(() => collectionReference.doc(any())).thenThrow(
-  //       Exception("Some error when getting a doc from the collection."),
-  //     );
+      await pumpEventQueue();
 
-  //     final snapshot = MockQuerySnapshot();
+      verifyNever(() => animalCubit.clear());
+      verifyNever(() => animalCubit.setState(any()));
+    },
+  );
 
-  //     when(() => snapshot.docs).thenAnswer((_) => []);
-  //     when((() => collectionReference.get())).thenAnswer((_) async => snapshot);
+  test(
+    "Given there is no user logged in, when setState is called, immediately call notifyListeners() and update local storage.",
+    () async {
+      setupMockUser(UserType.loggedOut);
 
-  //     when(
-  //       () => firestore.collection("$uid/animals"),
-  //     ).thenReturn(collectionReference);
+      const wolf = Animal(id: "2", name: "Wolf", count: 2);
+      final localState = setUpLocalPool([wolf], wolf.id);
 
-  //     userStreamController.add(user);
+      final pool = build();
+      expect(pool.state, localState);
 
-  //     await pumpEventQueue();
+      bool notifyCalled = false;
+      pool.addListener(() {
+        notifyCalled = true;
+      });
 
-  //     verifyNever(() => animalCubit.delete(bear));
-  //   },
-  // );
+      final updatedState = AnimalListState(
+        animals: [deer, wolf],
+        currentAnimalID: deer.id,
+      );
+      pool.setState(updatedState);
+      verify(() => animalCubit.setState(updatedState));
+      verifyNever(() => docReference.set(any()));
+      expect(pool.state, updatedState);
+      expect(notifyCalled, true);
+    },
+  );
 
-  // test(
-  //   "Given there is no user logged in, when upsert is called, immediately call notifyListeners() and update local storage.",
-  //   () async {
-  //     setupMockUser(UserType.loggedOut);
+  test(
+    "Given there is an anonymous user logged in, when setState is called, immediately call notifyListeners() and update local storage.",
+    () async {
+      setupMockUser(UserType.anonymous);
 
-  //     const wolf = Animal(id: "2", name: "Wolf", count: 2);
-  //     setupAnimalMocks([wolf]);
+      const wolf = Animal(id: "2", name: "Wolf", count: 2);
+      final localState = setUpLocalPool([wolf], wolf.id);
 
-  //     final pool = build();
-  //     expect(pool.getByID(wolf.id), null);
+      final pool = build();
+      expect(pool.state, localState);
 
-  //     bool notifyCalled = false;
-  //     pool.addListener(() {
-  //       notifyCalled = true;
-  //     });
+      bool notifyCalled = false;
+      pool.addListener(() {
+        notifyCalled = true;
+      });
 
-  //     pool.upsert(wolf);
+      final updatedState = AnimalListState(
+        animals: [deer, wolf],
+        currentAnimalID: deer.id,
+      );
+      pool.setState(updatedState);
+      verify(() => animalCubit.setState(updatedState));
+      verifyNever(() => docReference.set(any()));
+      expect(pool.state, updatedState);
+      expect(notifyCalled, true);
+    },
+  );
 
-  //     verify(() => animalCubit.upsert(wolf));
-  //     expect(pool.getByID(wolf.id), wolf);
-  //     expect(notifyCalled, true);
-  //   },
-  // );
+  test(
+    "Given there is a non-anon user logged in, when the data changes, immediately call notifyListeners() and after a delay update Firestore.",
+    () async {
+      setupMockUser(UserType.loggedIn);
 
-  // test(
-  //   "Given there is an anonymous user logged in, when upsert is called, immediately call notifyListeners() and update local storage.",
-  //   () async {
-  //     setupMockUser(UserType.anonymous);
+      const wolf = Animal(id: "2", name: "Wolf", count: 2);
+      final firebaseState = setUpFirebase([wolf, deer], wolf.id);
+      setUpLocalPool([], null);
 
-  //     const wolf = Animal(id: "2", name: "Wolf", count: 2);
-  //     setupAnimalMocks([wolf]);
+      final pool = build();
+      await pool.waitForLoad();
 
-  //     final pool = build();
-  //     expect(pool.getByID(wolf.id), null);
+      expect(pool.state, firebaseState);
 
-  //     bool notifyCalled = false;
-  //     pool.addListener(() {
-  //       notifyCalled = true;
-  //     });
+      bool notifyCalled = false;
+      pool.addListener(() {
+        notifyCalled = true;
+      });
 
-  //     pool.upsert(wolf);
-  //     expect(pool.getByID(wolf.id), wolf);
-  //     verify(() => animalCubit.upsert(wolf));
-  //     expect(notifyCalled, true);
-  //   },
-  // );
+      final updatedState = AnimalListState(
+        animals: [bear, deer, wolf],
+        currentAnimalID: bear.id,
+      );
+      pool.setState(updatedState);
+      expect(notifyCalled, true);
+      expect(pool.state, updatedState);
 
-  // test(
-  //   "Given there is a non-anon user logged in, when the data changes, immediately call notifyListeners() and after a delay update Firestore.",
-  //   () async {
-  //     setupMockUser(UserType.loggedIn);
+      var data = await docReference.get();
+      expect(data.data(), firebaseState.toJson());
 
-  //     const wolf = Animal(id: "2", name: "Wolf", count: 2);
-  //     setupAnimalMocks([wolf]);
+      await Future.delayed(delayDuration + const Duration(milliseconds: 100));
 
-  //     final pool = build();
-  //     expect(pool.getByID(wolf.id), null);
+      data = await docReference.get();
+      expect(data.data(), updatedState.toJson());
 
-  //     bool notifyCalled = false;
-  //     pool.addListener(() {
-  //       notifyCalled = true;
-  //     });
-
-  //     pool.upsert(wolf);
-  //     expect(notifyCalled, true);
-  //     expect(pool.getByID(wolf.id), wolf);
-
-  //     var data = await collectionReference.doc(wolf.id).get();
-  //     expect(data.data(), <String, dynamic>{});
-
-  //     await Future.delayed(delayDuration + const Duration(milliseconds: 100));
-
-  //     data = await collectionReference.doc(wolf.id).get();
-  //     expect(data.data(), wolf.toMap());
-
-  //     verifyNever(() => animalCubit.upsert(wolf));
-  //   },
-  // );
+      verifyNever(() => animalCubit.setState(any()));
+    },
+  );
 
   // test(
   //   "Given a user is logged out, when delete is called, then the item will be immediately deleted from the local storage.",
