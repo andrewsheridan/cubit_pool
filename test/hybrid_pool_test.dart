@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cubit_pool/hybrid_pool.dart';
+import 'package:cubit_pool/src/hybrid_pool.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -15,11 +15,7 @@ import 'mocks/mock_query_snapshot.dart';
 import 'mocks/mock_user.dart';
 import 'mocks/stubbed_collection_reference.dart';
 
-enum UserType {
-  loggedOut,
-  anonymous,
-  loggedIn,
-}
+enum UserType { loggedOut, anonymous, loggedIn }
 
 class AnimalPool extends HybridPool<Animal> {
   AnimalPool({
@@ -42,22 +38,14 @@ void main() {
 
   const delayDuration = Duration(milliseconds: 250);
 
-  const bear = Animal(
-    id: "0",
-    name: "Bear",
-    count: 1,
-  );
+  const bear = Animal(id: "0", name: "Bear", count: 1);
 
-  const deer = Animal(
-    id: "1",
-    name: "Deer",
-    count: 3,
-  );
+  const deer = Animal(id: "1", name: "Deer", count: 3);
 
   void setUpLocalPool(List<Animal> animals) {
-    when(() => localPool.state).thenReturn({
-      for (final animal in animals) animal.id: animal,
-    });
+    when(
+      () => localPool.state,
+    ).thenReturn({for (final animal in animals) animal.id: animal});
   }
 
   User? setupMockUser(UserType userType) {
@@ -83,13 +71,13 @@ void main() {
 
   void setupAnimalMocks(List<Animal> animals) {
     when(() => localPool.itemFromJson(any())).thenAnswer(
-      (invocation) => Animal.fromMap(invocation.positionalArguments.first),
+      (invocation) => Animal.fromJson(invocation.positionalArguments.first),
     );
     for (final animal in animals) {
-      when(() => localPool.itemToJson(animal)).thenReturn(animal.toMap());
-      when(() => localPool.getItemID(animal)).thenAnswer(
-        (invocation) => animal.id,
-      );
+      when(() => localPool.itemToJson(animal)).thenReturn(animal.toJson());
+      when(
+        () => localPool.getItemID(animal),
+      ).thenAnswer((invocation) => animal.id);
     }
   }
 
@@ -103,22 +91,23 @@ void main() {
     setUpLocalPool([bear]);
     setupAnimalMocks([bear, deer]);
 
-    when(() => firestore.collection("$uid/animals"))
-        .thenReturn(collectionReference);
-    when(() => firebaseAuth.userChanges()).thenAnswer(
-      (_) => userStreamController.stream,
-    );
+    when(
+      () => firestore.collection("$uid/animals"),
+    ).thenReturn(collectionReference);
+    when(
+      () => firebaseAuth.userChanges(),
+    ).thenAnswer((_) => userStreamController.stream);
 
-    collectionReference.doc(deer.id).set(deer.toMap());
+    collectionReference.doc(deer.id).set(deer.toJson());
   });
 
   HybridPool<Animal> build() => AnimalPool(
-        localPool: localPool,
-        auth: firebaseAuth,
-        firestore: firestore,
-        collectionPath: (user) => "${user.uid}/animals",
-        updateDelayDuration: delayDuration,
-      );
+    localPool: localPool,
+    auth: firebaseAuth,
+    firestore: firestore,
+    collectionPath: (user) => "${user.uid}/animals",
+    updateDelayDuration: delayDuration,
+  );
 
   test(
     "Given there is no user logged in, when constructed, expose data from HydratedCubit.",
@@ -249,8 +238,9 @@ void main() {
       when(() => snapshot.docs).thenAnswer((_) => []);
       when((() => collectionReference.get())).thenAnswer((_) async => snapshot);
 
-      when(() => firestore.collection("$uid/animals"))
-          .thenReturn(collectionReference);
+      when(
+        () => firestore.collection("$uid/animals"),
+      ).thenReturn(collectionReference);
 
       userStreamController.add(user);
 
@@ -333,7 +323,7 @@ void main() {
       await Future.delayed(delayDuration + const Duration(milliseconds: 100));
 
       data = await collectionReference.doc(wolf.id).get();
-      expect(data.data(), wolf.toMap());
+      expect(data.data(), wolf.toJson());
 
       verifyNever(() => localPool.upsert(wolf));
     },
@@ -389,10 +379,10 @@ void main() {
       expect(pool.getByID(deer.id), deer);
 
       final bearDocBefore = await collectionReference.doc(bear.id).get();
-      expect(bearDocBefore.data(), bear.toMap());
+      expect(bearDocBefore.data(), bear.toJson());
 
       final deerDocBefore = await collectionReference.doc(deer.id).get();
-      expect(deerDocBefore.data(), deer.toMap());
+      expect(deerDocBefore.data(), deer.toJson());
 
       await pool.delete(deer);
       await pool.delete(bear);
@@ -461,7 +451,7 @@ void main() {
 
       await pumpEventQueue();
 
-      collectionReference.doc(sheep.id).set(sheep.toMap());
+      collectionReference.doc(sheep.id).set(sheep.toJson());
 
       expect(pool.state.length, 1);
       expect(pool.getByID(sheep.id), null);

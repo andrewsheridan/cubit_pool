@@ -1,4 +1,4 @@
-import 'package:cubit_pool/hydrated_value_cubit.dart';
+import 'package:cubit_pool/src/hydrated_value_cubit.dart';
 
 class HydratedDoubleCubit extends HydratedValueCubit<double> {
   HydratedDoubleCubit(super.state);

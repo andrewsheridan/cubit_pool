@@ -2,31 +2,13 @@ import 'dart:async';
 import 'dart:collection';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cubit_pool/hydrated_cubit_pool.dart';
+import 'package:cubit_pool/src/hydrated_cubit_pool.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 
-enum HybridPoolLoadingState { notLoaded, loading, loaded, refreshing }
-
-sealed class HybridPoolUser {}
-
-class NotLoggedInUser implements HybridPoolUser {}
-
-class AnonymousUser implements HybridPoolUser {}
-
-class LoggedInUser implements HybridPoolUser {
-  final String uid;
-
-  LoggedInUser({required this.uid});
-}
-
-class ItemUpdatedEvent<T> {
-  final T before;
-  final T after;
-
-  ItemUpdatedEvent(this.before, this.after);
-}
+import 'hybrid_storage_loading_state.dart';
+import 'item_updated_event.dart';
 
 abstract class HybridPool<T> extends ChangeNotifier {
   @protected
@@ -44,20 +26,20 @@ abstract class HybridPool<T> extends ChangeNotifier {
       StreamController.broadcast();
   final StreamController<T> _itemDeletedController =
       StreamController.broadcast();
-  final StreamController<HybridPoolLoadingState> _loadingStateController =
+  final StreamController<HybridStorageLoadingState> _loadingStateController =
       StreamController.broadcast();
 
   Stream<T> get itemAddedStream => _itemAddedController.stream;
   Stream<ItemUpdatedEvent<T>> get itemUpdatedStream =>
       _itemUpdatedController.stream;
   Stream<T> get itemDeletedStream => _itemDeletedController.stream;
-  Stream<HybridPoolLoadingState> get loadingStateStream =>
+  Stream<HybridStorageLoadingState> get loadingStateStream =>
       _loadingStateController.stream;
 
   final Map<String, T> _state = <String, T>{};
   final Map<String, T> _updates = <String, T>{};
-  HybridPoolLoadingState _loadingState = HybridPoolLoadingState.notLoaded;
-  HybridPoolLoadingState get loadingState => _loadingState;
+  HybridStorageLoadingState _loadingState = HybridStorageLoadingState.notLoaded;
+  HybridStorageLoadingState get loadingState => _loadingState;
 
   String? _syncedUserID;
   String? get syncedUserID => _syncedUserID;
@@ -96,10 +78,10 @@ abstract class HybridPool<T> extends ChangeNotifier {
   }
 
   Future<void> waitForLoad() async {
-    if (_loadingState == HybridPoolLoadingState.loaded) return;
+    if (_loadingState == HybridStorageLoadingState.loaded) return;
 
     await loadingStateStream.firstWhere(
-      (s) => s == HybridPoolLoadingState.loaded,
+      (s) => s == HybridStorageLoadingState.loaded,
     );
   }
 
@@ -112,10 +94,9 @@ abstract class HybridPool<T> extends ChangeNotifier {
   Future<void> syncData(User? user, {bool isRefresh = false}) async {
     logger.info("Getting data for user ${user?.uid ?? "null"}");
 
-    _loadingState =
-        isRefresh
-            ? HybridPoolLoadingState.refreshing
-            : HybridPoolLoadingState.loading;
+    _loadingState = isRefresh
+        ? HybridStorageLoadingState.refreshing
+        : HybridStorageLoadingState.loading;
     _loadingStateController.add(_loadingState);
     notifyListeners();
 
@@ -171,7 +152,7 @@ abstract class HybridPool<T> extends ChangeNotifier {
     }
 
     logger.info("Loading complete.");
-    _loadingState = HybridPoolLoadingState.loaded;
+    _loadingState = HybridStorageLoadingState.loaded;
     _loadingStateController.add(_loadingState);
     _syncedUserID = user == null || user.isAnonymous ? null : user.uid;
 
