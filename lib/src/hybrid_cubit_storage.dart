@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cubit_pool/src/hydrated_cubit_with_setter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
@@ -153,7 +152,7 @@ abstract class HybridCubitStorage<T> extends ChangeNotifier {
     return _firestore.doc(docPath(_auth.currentUser!)).set(json);
   }
 
-  Future<void> setState(T value) async {
+  void setState(T value) {
     final before = _state;
     _state = value;
 
