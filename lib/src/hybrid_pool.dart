@@ -140,9 +140,13 @@ abstract class HybridPool<T> extends ChangeNotifier {
         final data = <String, T>{};
 
         for (final doc in docs) {
-          final item = localPool.itemFromJson(doc.data());
-          final id = localPool.getItemID(item);
-          data[id] = item;
+          try {
+            final item = localPool.itemFromJson(doc.data());
+            final id = localPool.getItemID(item);
+            data[id] = item;
+          } catch (ex) {
+            logger.severe("Failed to parse document data. ${doc.data()}", ex);
+          }
         }
         _state.clear();
         _state.addAll(data);
