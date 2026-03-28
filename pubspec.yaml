@@ -1,6 +1,6 @@
 name: cubit_pool
 description: "A new Flutter package project."
-version: 1.2.1
+version: 1.2.2
 homepage: null
 
 environment:
@@ -9,8 +9,8 @@ environment:
 publish_to: none
 
 dependencies:
-  cloud_firestore: 5.6.12
-  cloud_functions: 5.6.2
+  cloud_firestore: ^5.6.12
+  firebase_auth: ^5.3.4
   flutter:
     sdk: flutter
   flutter_bloc: ^9.1.0
