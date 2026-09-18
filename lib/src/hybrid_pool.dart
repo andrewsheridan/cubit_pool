@@ -204,7 +204,7 @@ abstract class HybridPool<T> extends ChangeNotifier {
       localPool.delete(value);
     } else {
       try {
-        return _firestore
+        return await _firestore
             .collection(collectionPath(_auth.currentUser!))
             .doc(id)
             .delete();
