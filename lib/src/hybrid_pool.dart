@@ -110,6 +110,11 @@ abstract class HybridPool<T> extends ChangeNotifier {
           _state.addAll(localPool.state);
         }
       } else {
+        if (isRefresh) {
+          _timer?.cancel();
+          await _executeUpdates();
+        }
+
         final path = collectionPath(user!);
         final collection = _firestore.collection(path);
 
